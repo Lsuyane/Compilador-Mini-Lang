@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Usage: python ./cumpyler.py <source_file> [-l|--lexer]
+Usage: python ./compyler.py <source_file> [-l|--lexer]
     @option [-?|--help] show help
     @option [-!|--log] log intermediary output using tui
     @option [-l|--lexer] options on lexer. Enable log
@@ -8,8 +8,8 @@ Usage: python ./cumpyler.py <source_file> [-l|--lexer]
 """
 
 import sys
-from options import *
-from utils import log_error, EXIT_SUCCESS, EXIT_ERROR
+from utils.options import *
+from utils.utils import log_error, EXIT_SUCCESS, EXIT_ERROR
 
 
 def show_help():
@@ -58,13 +58,14 @@ if __name__ == "__main__":
 
     # region Lexer only
     if options & Options.LEXER:
-        import lexer
+        import modules.lexer as lexer
 
         lexer.main(source_filename, bool(options & Options.LOG))
         exit(EXIT_SUCCESS)
     # endregion
 
     # region Full compiler
-    import parser
+    import modules.parser as parser
+
     parser.main(source_filename, options)
     # endregion

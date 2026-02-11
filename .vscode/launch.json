@@ -1,0 +1,81 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger [pick arguments]",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src//compiler.py",
+            "console": "integratedTerminal",
+            "args": "${command:pickArgs}"
+        },
+
+        {
+            "name": "Python Debugger [no log]",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "compiler.py",
+            "console": "integratedTerminal",
+            "args": "./code.ml",
+            "presentation": {
+                "hidden": false,
+                "group": "debug",
+                "order": 1
+            },
+            "cwd": "${workspaceFolder}/src/"
+        },
+
+        {
+            "name": "Python Debugger",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/compiler.py",
+            "console": "integratedTerminal",
+            "args": [
+                "./code.ml",
+                "--log"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "debug",
+                "order": 1
+            },
+        },
+
+        {
+            "name": "Python Debugger [stop on lexer]",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/compiler.py",
+            "console": "integratedTerminal",
+            "args": [
+                "./code.ml",
+                "--lexer",
+                "--log"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "debug",
+                "order": 1
+            }
+        },
+
+        {
+            "name": "Python Debugger [current file]",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "./code.ml",
+            "presentation": {
+                "hidden": false,
+                "group": "debug",
+                "order": 1
+            },
+            "cwd": "${workspaceFolder}"
+        },
+    ]
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Defines the symbol table."""
-from utils import log, log_info, log_success, log_warning
+from utils.utils import log, log_info, log_success, log_warning
 
 
 class Symbol:

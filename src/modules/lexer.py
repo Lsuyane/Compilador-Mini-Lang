@@ -2,8 +2,8 @@
 
 import sys
 from typing import Callable, Optional
-from utils import EXIT_ERROR, log
-from istream import TuiInputStream, InputStream
+from utils.utils import EXIT_ERROR, log
+from utils.istream import TuiInputStream, InputStream
 from functools import partial
 
 
@@ -397,7 +397,7 @@ def show_help():
 
 def main(filename: str, log_enabled: bool, *args, **kwargs) -> None:
     if log_enabled:
-        from tui import Tui
+        from utils.tui import Tui
 
         ui = Tui(mode=Tui.Mode.LEXER)
         istream = TuiInputStream(filename, partial(ui.log_source, end=""))
@@ -410,7 +410,7 @@ def main(filename: str, log_enabled: bool, *args, **kwargs) -> None:
 
 
 if __name__ == "__main__":
-    from utils import log_warning, log_error, EXIT_ERROR
+    from utils.utils import log_warning, log_error, EXIT_ERROR
 
     # Verifica se o usuário passou o nome do arquivo
     if len(sys.argv) < 2:

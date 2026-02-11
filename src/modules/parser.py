@@ -3,13 +3,13 @@ from functools import partial
 import sys
 from typing import Callable
 
-from istream import InputStream, TuiInputStream
-from options import *
-from tui import Tui
-from utils import EXIT_ERROR, log, log_error
-from lexer import Lexer, Num, Token, Tag, Tags, Id, Type
-from symbols import Symbol, SymTable
-from utils import log_warning
+from utils.istream import InputStream, TuiInputStream
+from utils.options import *
+from utils.tui import Tui
+from utils.utils import EXIT_ERROR, log, log_error
+from modules.lexer import Lexer, Num, Token, Tag, Tags, Id, Type
+from modules.symbols import Symbol, SymTable
+from utils.utils import log_warning
 from queue import SimpleQueue as Queue
 
 
@@ -417,7 +417,7 @@ def main(source_filename: str, options: int, *args, **kwargs):
 
 
 if __name__ == "__main__":
-    from utils import log_warning
+    from src.utils.utils import log_warning
 
     # Verifica se o usuário passou o nome do arquivo
     if len(sys.argv) < 2:
