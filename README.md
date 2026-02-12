@@ -1,5 +1,7 @@
 # Compilador Mini-Lang
 
+Assignment instructions at [./projeto_final.pdf](./projeto_final.pdf).
+
 ## Install
 
 ### Linux
