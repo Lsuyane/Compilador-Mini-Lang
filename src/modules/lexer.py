@@ -48,6 +48,10 @@ class Tags:
     TYPE = Tag(258, "TYPE")
     TRUE = Tag(259, "TRUE")  # apenas para ilustrar
     FALSE = Tag(260, "FALSE")  # apenas para ilustrar
+    VAR = Tag(261, "var")
+    SET = Tag(262, "set")
+    PRINT = Tag(263, "print")
+    STR_LIT = Tag(264, "STR_LIT")
     # TODO
     # CHAR = Tag(261, 'CHAR')
     # STR = Tag(262, 'STR')
@@ -55,7 +59,7 @@ class Tags:
     # FLOAT = Tag(264, 'FLOAT')
     # PTR = Tag(265, 'PTR')
 
-
+    
 class Token:
     def __init__(self, tag: Tag | str | int):
         if isinstance(tag, int):
@@ -92,7 +96,6 @@ class Token:
     def __str__(self) -> str:
         return str(self.tag)
 
-
 class Id(Token):
     name: str
 
@@ -118,6 +121,12 @@ class Num(Token):
         super().__init__(Tags.NUM)
         self.value = value
 
+class Str(Token):
+    def __init__(self,value: str):
+        super().__init__(Tags.STR_LIT)
+        self.value = value
+    def __str__(self)-> str:
+        return f'{self.value}"'
 
 class Lexer:
     _id_table: dict[str, "Token | Id | Type"] = {}
@@ -167,6 +176,9 @@ class Lexer:
             "i64": Type("i64"),
             "u64": Type("u64"),
             "void": Type("void"),  # for pointers and functions
+            "var": Token(Tags.VAR),
+            "set": Token(Tags.SET),
+            "print": Token(Tags.PRINT),
         }
 
     def _open_source_file(self, filename: str):
@@ -274,7 +286,22 @@ class Lexer:
                         self._peek = self._get_next_char()
                     # endregion
             # endregion
+            # region 2.5 Trata Strings
+            if self._peek == '"':
+                str_val = ""
+                self._peek = self._get_next_char() #aspa inicial
 
+                while self._peek != '"' and self._peek != "":
+                    str_val += self._peek
+                    self._peek = self._get_next_char()
+                if self._peek == '"':
+                    self._peek = self._get_next_char() #aspa final
+                    
+                self._log(f'<STR_LIT, "{str_val}">', end="")
+                self._logged_token = True
+                return Str(str_val)
+              #endregion      
+                    
             # TODO -> Tratar identificadores genéricos de forma diferente de palavras-reservadas
             # region 3. Trata identificadores e palavras reservadas
             if self._peek.isalpha():
