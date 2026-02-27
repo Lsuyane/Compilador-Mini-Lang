@@ -12,7 +12,7 @@ from modules.symbols import Symbol, SymTable
 from utils.utils import log_warning
 from queue import SimpleQueue as Queue
 
-from modules.ast import Program, Block, Literal, BinOp, Assignment, VarDecl,Identifier, ASTNode, VarDecl, Assignment
+from modules.ast import Program, Block, Literal, BinOp, Assignment, VarDecl, Identifier, ASTNode, VarDecl, PrintStmt
 from typing import List
 from pprint import pformat
 
@@ -71,6 +71,48 @@ class Parser:
         lista_de_comandos = self.stmts()
         return Program(statements=lista_de_comandos)
 
+    def var_decl(self) -> VarDecl:
+        """Regra: var <id> : <type> = <expr> ;"""
+        self.match(Tags.VAR)
+        
+        name = str(self._lookahead)
+        self.match(Tags.ID)
+        self.match(Tag(":"))
+        
+        var_type = str(self._lookahead)
+        self.match(Tags.TYPE)
+        self.match(Tag("="))
+        
+        expr_node = self.opers()
+        self.match(Tag(";"))
+
+        #Salvar tabelas de simbolos
+        if not self._sym_table.insert(name, Symbol(name, var_type)):
+            raise ParseError(f"Erro: variável '{name}' já declarada.")
+        return VarDecl(name=name, var_type=var_type, value=expr_node)
+    
+    def assignment(self) -> Assignment:
+        """Regra: set <id> = <expr> ;"""      
+        self.match(Tags.SET)
+        
+        name = str(self._lookahead)
+        self.match(Tags.ID)
+        self.match(Tag("="))
+        
+        expr_node = self.opers()
+        self.match(Tag(";"))
+        
+        return Assignment(name=name, value=expr_node)
+    
+    def print_stmt(self) -> PrintStmt:
+        """Regra: print <expr> ;"""
+        
+        self.match(Tags.PRINT)
+        expr_node = self.opers()
+        self.match(Tag(";"))
+        
+        return PrintStmt(expr=expr_node)
+            
     def stmts(self) -> List[ASTNode]:
         """Statements
         Regras:
@@ -81,21 +123,27 @@ class Parser:
         
         while True:
             # stmt -> block
+            if self._lookahead == ";":
+                self.match(Tag(";"))
+                continue
+            
             if self._lookahead.tag == "{":
-                bloco = self.block()
-                statements_list.append(bloco)
+                statements_list.append(self.block())
                 continue
-            node_expr = self.expr()
-            if node_expr:
-                if self._lookahead == ";":
-                    self.match(Tag(";"))
-                else:
-                    raise ParseError(
-                        f"Erro na linha {self._lexer.line}:"
-                        " fim de linha ou ';' esperado."
-                    )
-                statements_list.extend(node_expr)
+            
+            if self._lookahead.tag == Tags.VAR:
+                statements_list.append(self.var_decl())
                 continue
+            
+            if self._lookahead.tag == Tags.SET:
+                statements_list.append(self.assignment())
+                continue
+            
+            if self._lookahead.tag == Tags.PRINT:
+                statements_list.append(self.print_stmt())
+                continue
+            
+            
             # Produção vazia
             return statements_list
 
@@ -330,57 +378,79 @@ class Parser:
             oper -> operator digit oper*
             operator -> + | - | * | /
         """
-        left_node = self.digit()
-
-        # operator digit
+        left_node = self.factor()
+      
         while True:
-            # Regra: oper -> + digit { print(+) } oper
+            
             if self._lookahead == "+":
                 op_str = self._lookahead.tag.name
                 self.match(Tag("+"))
-                right_node = self.digit()
+                right_node = self.factor()
                 
                 left_node = BinOp(left=left_node, op=op_str,right=right_node)
-                
-            # Regra: oper -> - digit { print(-) } oper
+           
             elif self._lookahead == "-":
                 op_str = self._lookahead.tag.name
                 self.match(Tag("-"))
-                right_node = self.digit()
+                right_node = self.factor()
                 
                 left_node = BinOp(left=left_node, op=op_str, right=right_node)
             # Produção vazia (return)
             else:
                 return left_node
     
-
-    def Fact(self):
-        # fact -> id
-        ...
-
-    def digit(self) -> Literal:
-        """
-        Regra: digit -> digit { print(digit) }
-        """
+    def factor(self) -> ASTNode:
+        
         modifier = 1
         if self._lookahead == "+":
             self.match(Tag("+"))
         elif self._lookahead == "-":
             self.match(Tag("-"))
             modifier = -1
-            
+        
         if self._lookahead.tag == Tags.NUM:
-            assert isinstance(self._lookahead, Num)
-            num_value = self._lookahead.value * modifier
-            # self._lexer._log(f"{self._lookahead}", end=" ", flush=True)
-            self.match(self._lookahead.tag)
-            return Literal(value=num_value)
+            val = self._lookahead.value * modifier
+            self.match(Tags.NUM)
+            return Literal(value=val)
+            
+        # É uma String (texto entre aspas)?
+        elif self._lookahead.tag == Tags.STR_LIT:
+            val = self._lookahead.value
+            self.match(Tags.STR_LIT)
+            return Literal(value=val)
+            
+        # É uma Variável sendo usada na conta (Identificador)?
+        elif self._lookahead.tag == Tags.ID:
+            name = str(self._lookahead)
+            self.match(Tags.ID)
+            return Identifier(name=name)
+        
         else:
-            log_error(
-                f"\nErro na linha {self._lexer.line}:"
-                f"\033[35m dígito era esperado, obteve {self._lookahead} ao invés disso."
-            )
-            raise ParseError()
+            raise ParseError(f"Erro na linha {self._lexer.line}: Esperado um valor, variável ou string.")
+        
+    #def digit(self) -> Literal:
+        """
+        Regra: digit -> digit { print(digit) }
+        """
+     #   modifier = 1
+     #   if self._lookahead == "+":
+     #       self.match(Tag("+"))
+     #   elif self._lookahead == "-":
+     #       self.match(Tag("-"))
+     #       modifier = -1
+            
+     #   if self._lookahead.tag == Tags.NUM:
+     #       assert isinstance(self._lookahead, Num)
+     #       num_value = self._lookahead.value * modifier
+     #       # self._lexer._log(f"{self._lookahead}", end=" ", flush=True)
+     #       self.match(self._lookahead.tag)
+     #       return Literal(value=num_value)
+     #   else:
+     #       log_error(
+     #           f"\nErro na linha {self._lexer.line}:"
+     #           f"\033[35m dígito era esperado, obteve {self._lookahead} ao invés disso."
+    #        )
+    #        raise ParseError()
 
     def match(self, t: Tag):
         """Verifica se o caractere atual corresponde ao esperado e avança."""
