@@ -15,8 +15,12 @@ import threading
 import time
 import sys
 import os
-import termios
-import tty
+try:
+    import termios
+    import tty
+except ImportError:
+    termios = None
+    tty = None
 import select
 
 
