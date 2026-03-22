@@ -247,8 +247,8 @@ class FunctionDecl(ASTNode):
         def to_py_type(t: str) -> str:
             return "float" if t == "real" else t
 
-        params = ", ".join(f"{p.name}: {p.param_type}" for p in self.params)
-        ret = f" -> {self.return_type}" if getattr(self, "return_type", None) else ""
+        params = ", ".join(f"{p.name}: {to_py_type(p.param_type)}" for p in self.params)
+        ret = f" -> {to_py_type(self.return_type)}" if getattr(self, "return_type", None) else ""
         logger(f"{_indent(indent)}def {self.name}({params}){ret}:")
         if self.body and getattr(self.body, "statements", None):
             self.body.gen(logger, indent + 1)
