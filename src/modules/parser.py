@@ -9,6 +9,7 @@ from .symbols import Symbol, SymTable
 from ..utils.istream import InputStream, TuiInputStream
 from ..utils.options import *
 from ..utils.tui import Tui
+from ..utils.arg_parser import ArgParser
 from ..utils.utils import EXIT_ERROR, log, log_error, log_warning
 from ..utils.utils import RICH_COLOR_ORANGE as RTC_ORANGE
 from ..modules.ast import (
@@ -115,6 +116,7 @@ class Parser:
 
         # Verificação de tipos na declaração
         expr_type = self._infer_type(expr_node)
+        self._check_type_compatibility(var_type,expr_type, var_token.coords, name)
         if expr_type != "unknown" and var_type != expr_type:
             if not (var_type == "real" and expr_type == "int"):
                 raise SemanticError(
@@ -134,6 +136,15 @@ class Parser:
                 f"[b][Erro semântico] [{self._lexer.filename}:{var_token.coords}]:[/b] "
                 f"variável '[cyan]{name}[/cyan]' já declarada em [{dupl.coords}]."
             )
+        
+        #shadowing   
+        if self._sym_table.is_shadowing(name):
+            shadow: Symbol = self._sym_table.previous.find(name)
+            self._warn(
+                f"[b][{self._lexer.filename}:{var_token.coords}]:[/b] A variável '[cyan]{name}[/cyan]' "
+                "está sombreando um símbolo de mesmo nome declarado em um escopo superior "
+                f"[{shadow.coords}]."
+            ) 
         return VarDecl(name=name, var_type=var_type, value=expr_node)
 
     def assignment(self) -> Assignment:
@@ -151,6 +162,7 @@ class Parser:
         sym = self._sym_table.find(name)
         if sym:
             expr_type = self._infer_type(expr_node)
+            self._check_type_compatibility(sym.type, expr_type, expr_token_coords, name)
             if expr_type != "unknown" and sym.type != expr_type:
                 if not (sym.type == "real" and expr_type == "int"):
                     raise SemanticError(
@@ -417,8 +429,14 @@ class Parser:
             <simple-expression> -> <term> { <additive-op> <term> }
             <term> -> <factor> { <multiplicative-op> <factor> }
         """
+       
+        """
+        Regras:
+            <expression> -> <simple-expression> { <relational-op> <simple-expression> }
+            <relational-op> -> "<" | ">" | "==" | "!=" | "<=" | ">="
+        """
         # TODO -> <simple-expression> -> <term> { <additive-op> <term> }
-        left_node = self.additive()
+        left_node = self.simple_expression()
 
         while True:
             #  <relational-op>
@@ -426,23 +444,22 @@ class Parser:
                 # <simple-expression> -> <term> { <additive-op> <term> }
                 op_str = str(self._lookahead)
                 self.match(Tag(op_str))
-                right_node = self.additive()
+                right_node = self.simple_expression()
                 left_node = BinOp(left=left_node, op=op_str, right=right_node)
                 self._infer_type(left_node)
 
             else:
                 return left_node
 
-    def additive(self):
-        """Additive
-            Soma e Subtração
-        Regras:
-            # TODO -> Fix grammar comment
-            opers -> digit oper'
-            oper -> operator digit oper*
-            operator -> + | -
+    def simple_expression(self):
+
         """
-        left_node = self.multiplicative()
+        Regras:
+            <simple-expression> -> <term> { <additive-op> <term> }
+            <additive-op> -> "+" | "-" | "or"
+        """
+        
+        left_node = self.term()
 
         while True:
             if self._lookahead in ("+", "-", "or"):
@@ -450,22 +467,20 @@ class Parser:
                 # FIXME -> Deve verificar tipos
                 op_str = str(self._lookahead)
                 self.match(Tag(op_str))
-                right_node = self.multiplicative()
+                right_node = self.term()
                 left_node = BinOp(left=left_node, op=op_str, right=right_node)
                 self._infer_type(left_node)
 
             else:
                 return left_node
 
-    def multiplicative(self):
-        """Multiplicative
-            Multiplicação e divisão
-        Regras:
-            opers -> digit oper'
-            oper -> operator digit oper*
-            operator -> * | /
+    def term(self):
         """
-
+        Regras:
+            <term> -> <factor> { <multiplicative-op> <factor> }
+            <multiplicative-op> -> "*" | "/" | "and"
+        """
+        
         left_node = self.factor()
 
         while True:
@@ -533,7 +548,7 @@ class Parser:
             if self._sym_table.find(name) is None:
                 raise SemanticError(
                     f"[Erro Semântico] [{self._lexer.filename}:{id_token_coords}]: "
-                    f"A variável '{name}' não foi encontrada."
+                    f"A função '{name}' não foi declarada."
                 )
             assert sym is not None
             if self._lookahead == "(":
@@ -566,13 +581,21 @@ class Parser:
                         param_name = param_symbol.var
 
                         # TODO -> Tipo desconhecido deve ser tratado
-                        if arg_type != "unknown" and arg_type != expected_type:
-                            raise SemanticError(
-                                f"[Erro Semântico] [{self._lexer.filename}:{closing_token_coords}]: "
-                                f"O {i+1}° parâmetro '[orange]{param_name}[/orange]' da função "
-                                f"'[cyan]{name}[/cyan]' em [{param_symbol.coords}] esperava "
-                                f"[purple]{expected_type}[/purple], mas recebeu [purple]{arg_type}[/purple]."
-                            )
+                        if arg_type != "unknown" and expected_type != "unknown":
+                            allowed = False
+                            if expected_type == arg_type: allowed = True
+                            elif expected_type == "int" and arg_type == "real": allowed = True
+                            elif expected_type == "real" and arg_type == "int": allowed = True
+                            elif expected_type == "int" and arg_type == "bool": allowed = True
+                            elif expected_type == "bool" and arg_type == "int": allowed = True
+                            
+                            if not allowed:
+                                raise SemanticError(
+                                    f"[Erro Semântico] [{self._lexer.filename}:{closing_token_coords}]: "
+                                    f"O {i+1}° parâmetro '[orange]{param_name}[/orange]' da função "
+                                    f"'[cyan]{name}[/cyan]' em [{param_symbol.coords}] esperava "
+                                    f"[purple]{expected_type}[/purple], mas recebeu [purple]{arg_type}[/purple]."
+                                )
                 return FunctionCall(name=name, args=args)
 
             return Identifier(name=name)
@@ -607,35 +630,48 @@ class Parser:
         elif isinstance(node, Identifier):
             sym = self._sym_table.find(node.name)
             return sym.type if sym else "unknown"
-
+        
+        elif isinstance(node, UnaryOp):
+            expr_type = self._infer_type(node.expr)
+            if node.op == "not" and expr_type not in ("bool", "int", "unknown"):
+                raise SemanticError(f"[Erro Semântico]: Operador 'not' requer 'bool' ou 'int', recebeu '{expr_type}'. ")
+            if node.op in ("+", "-") and expr_type not in ("int", "real", "bool", "unknown"):
+                raise (f"[Erro Semântico]: Operador '{node.op}'numérico não suporta o tipo '{expr_type}'.")
+            return "bool" if node.op == "not" else expr_type
+            
         elif isinstance(node, BinOp):
             left_type = self._infer_type(node.left)
             right_type = self._infer_type(node.right)
-
-            if (
-                left_type != "unknown"
-                and right_type != "unknown"
-                and left_type != right_type
-            ):
-                # ------#
-                if (left_type == "int" and right_type == "real") or (
-                    left_type == "real" and right_type == "int"
-                ):
-                    left_type = "real"
-                # ------#
-                else:
-                    raise SemanticError(
-                        f"[Erro Semântico] [{self._lexer.filename}:{self._lexer.line}:{self._lexer.column}]: "
-                        f"Tipos incompatíveis na operação."
-                        f"Tentativa de combinar [purple]{left_type}[/purple] com [purple]{right_type}[/purple]."
-                    )
+            
+            if (right_type != "unknown" and left_type != "unknown"):
+                #(and,or)
+                if node.op in ("and", "or"):
+                    if left_type not in ("bool", "int") or right_type not in ("bool", "int"):
+                        raise SemanticError(
+                            f"[Erro Semântico]: Operador lógico '{node.op}' exige tipos 'bool' ou 'int'."
+                            f"Recebeu '{left_type}' e  '{right_type}'."
+                        )
+                    return "bool"
+                #(+, -, *, /)
+                if node.op in ("+", "-", "*", "/"):
+                    if left_type == "str" or right_type == "str":
+                        raise SemanticError(f"[Erro Semântico]: Não é possível usar o operador '{node.op}' com strings.")
+                    
+                    if (left_type == "bool" and right_type == "real") or (left_type == "real" and right_type == "bool"):
+                        raise SemanticError(f"[Erro Semântico]: Tipos incompatíveis (Tentativa de operar 'bool' com 'real').")
+                    
+                    if left_type == "real" or right_type == "real":
+                        return "real"
+                    return "int"
+                
             if node.op in (">", "<", "==", "!=", ">=", "<="):
                 return "bool"
 
             return left_type
 
         elif isinstance(node, FunctionCall):
-            return "int"
+            sym = self._sym_table.find(node.name)
+            return sym.type if sym else "unknown"
 
         # FIXME -> Tratar tipo desconhecido
         return "unknown"
@@ -651,7 +687,26 @@ class Parser:
                 f"\tEra esperado '{t.name}', mas o compilador encontrou '{self._lookahead.tag.name}'."
             )
 
-
+    """Truncamento, Contagem, Veracidade"""
+    def _check_type_compatibility(self, target_type:str, expr_type: str, coords, name: str):
+        if expr_type == "unknown" or target_type == "unknown":
+            return
+        if target_type == expr_type:
+            return
+        
+        allowed = False
+        if target_type == "int" and expr_type == "real": allowed = True
+        elif target_type == "real" and expr_type == "int": allowed = True
+        elif target_type == "int" and expr_type == "bool": allowed = True
+        elif target_type == "bool" and expr_type == "int": allowed = True
+        
+        if not allowed:
+            raise SemanticError(
+                f"[b][Erro Semântico] [{self._lexer.filename}:{coords}]: [/b] "
+                f"Tipo incompatível. A variável '[cyan]{name}[/cyan]' é '[purple]{target_type}[/purple]',"
+                f"mas recebeu um valor '[purple]{expr_type}[/purple]'."
+            )
+        
 def main(source_filename: str, options: int, *args, **kwargs):
     if options & Options.LOG:
         tui = Tui(Tui.Mode.PARSER)
