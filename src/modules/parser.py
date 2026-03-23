@@ -130,10 +130,11 @@ class Parser:
 
         # Salvar tabelas de símbolos
         assert var_token.coords is not None
-        if not self._sym_table.insert(name, Symbol(name, var_type, var_token.coords)):
-            dupl: Symbol = self._sym_table.find(
-                name
-            )  # pyright: ignore[reportAssignmentType]
+        
+        sym = Symbol(name, var_type, var_token.coords, scope_id=self._sym_table.scope_id)
+        
+        if not self._sym_table.insert(name, sym):
+            dupl: Symbol = self._sym_table.find(name)  # pyright: ignore[reportAssignmentType]
             raise SyntaxError(
                 f"[b][Erro Sintático] [{self._lexer.filename}:{var_token.coords}]:[/b] "
                 f"variável '[cyan]{name}[/cyan]' já declarada em [{dupl.coords}]."
@@ -151,7 +152,7 @@ class Parser:
                 f"'[cyan]{name}[/cyan]' está sombreando ([b]shadowing[/b]) um símbolo "
                 f"de mesmo nome declarado em um escopo superior [{shadow.coords}]."
             )
-        return VarDecl(name=name, var_type=var_type, value=expr_node)
+        return VarDecl(name=sym.mangled_name, var_type=var_type, value=expr_node)
 
     def assignment(self) -> Assignment:
         """Regra: set <id> = <expr> ;"""
@@ -187,7 +188,7 @@ class Parser:
             )
 
         return Assignment(
-            name=name, value=expr_node, var_type=sym.type if sym else "undefined"
+            name=sym.mangled_name if sym else name, value=expr_node, var_type=sym.type if sym else "undefined"
         )
 
     def print_stmt(self) -> PrintStmt:
@@ -268,14 +269,14 @@ class Parser:
                 self.match(Tag(":"))
                 p_type = str(self._lookahead)  # ação semântica
                 self.match(Tags.TYPE)
-
+                
+                p_sym = Symbol(p_name, p_type, p_token_coords, scope_id=self._sym_table.scope_id
+                               )
                 # ação semântica: `params.append(<f-p>.node)`
-                params.append(FormalParam(name=p_name, param_type=p_type))
+                params.append(FormalParam(name=p_sym.mangled_name, param_type=p_type))
 
                 # ação semântica:
-                if not self._sym_table.insert(
-                    p_name, Symbol(p_name, p_type, p_token_coords)
-                ):
+                if not self._sym_table.insert(p_name, p_sym):
                     dupl: Symbol = self._sym_table.find(
                         p_name
                     )  # pyright: ignore[reportAssignmentType]
@@ -557,11 +558,16 @@ class Parser:
             id_token_coords = self._lookahead.coords
             name = str(self._lookahead)
             self.match(Tags.ID)
-            undeclared: bool = False
+            #undeclared: bool = False
 
             sym = self._sym_table.find(name)
             if sym is None:
-                undeclared = True
+                #undeclared = True
+                raise SemanticError(
+                    f"[Erro Semântico] [{self._lexer.filename}:{id_token_coords}]: "
+                    f"A variável '{name}' não foi encontrada."
+                )
+            assert sym is not None
             if self._lookahead == "(":
                 # <factor> -> <function-call>
                 # <function-call> = <identifier> "(" [ <actual-params>] ") "
@@ -627,13 +633,13 @@ class Parser:
                                     f"[purple]{expected_type}[/purple], mas recebeu [purple]{arg_type}[/purple]."
                                 )
                 return FunctionCall(name=name, args=args)
-            elif undeclared:
+            """elif undeclared:
                 raise SyntaxError(
                     f"[b][Erro Sintático] [{self._lexer.filename}:{id_token_coords}]:[/b] "
                     f"Identificador referencia uma variável '[cyan]{name}[/cyan]' não declarada."
-                )
+                )"""
 
-            return Identifier(name=name)
+            return Identifier(name=sym.mangled_name)
 
         else:
             raise SyntaxError(
