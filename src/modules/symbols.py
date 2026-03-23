@@ -21,18 +21,27 @@ class Symbol:
     type: str
     params: list["Symbol"]
     coords: Coords
-
+    scope_id: int
+    
     def __init__(
         self,
         var: str,
         type: str,
         coords: Coords,
         params: list["Symbol"] | None = None,
+        scope_id: int = 0,
     ) -> None:
         self.var = var
         self.type = type
         self.params = params or []
         self.coords = coords
+        self.scope_id = scope_id
+    
+    @property
+    def mangled_name(self) -> str:
+        if self.type == "function":
+            return self.var
+        return f"{self.var}_{self.scope_id}"
 
     def __repr__(self) -> str:
         return f"Symbol(var='{self.var}', type='{self.type}', params={self.params}, coords={self.coords})"
@@ -44,9 +53,11 @@ class SymTable:
     Se mantida as referências para as folhas, pode compor uma 'árvore'
     cujo cadeias apontam para raiz.
     """
-
+    _scope_counter = 0
+    
     previous: "SymTable | None"
     table: dict[str, Symbol]  # Tabela inicia vazia
+    scope_id: int
 
     def __init__(self, previous: "SymTable | None" = None) -> None:
         """Construtor da tabela de símbolos.
@@ -57,6 +68,9 @@ class SymTable:
         self.table = {}  # Each SymTable has its own dict
         self.previous = previous
 
+        SymTable._scope_counter += 1
+        self.scope_id = SymTable._scope_counter
+        
     def insert(self, id: str, symbol: Symbol) -> bool:
         """
         Função para inserir um símbolo na tabela atual.
